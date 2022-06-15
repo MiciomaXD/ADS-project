@@ -1,0 +1,1149 @@
+---
+title: "Viaggio nel mondo dei videogiochi"
+author: "Massimiliano Pascoli"
+date: "`r format(Sys.time(), '%d/%m/%Y')`"
+output:
+  ioslides_presentation:
+    css: style.css
+  slidy_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library("tidyr") #separate_row
+library("dplyr") #db query
+library("readr") #lettura csv
+library("stringr") #regex
+library("ggplot2") #grafici
+library("ggraph") #grafi
+library("tidygraph")#grafi
+```
+
+```{r readDB, include = FALSE}
+NUMBERS_DATA_PATH="./dset/steam_data.csv"
+TEXT_DATA_PATH="./dset/text_content.csv"
+steam_numbers_original <- read_csv(NUMBERS_DATA_PATH)
+steam_text_original <- read_csv(TEXT_DATA_PATH)
+```
+
+# 1. Introduzione
+
+## 1.1 Obiettivo
+
+Esploreremo la più grande piattaforma di distribuzione digitale in campo videoludico in un viaggio attraverso il vastissimo **mondo dei videogiochi** che affascina intere generazioni fin dalla loro creazione nei lontani anni '40.
+
+![*Tennis for two*: uno dei primi (veri) videogiochi inventati negli anni '50](Images/tennis_for_two.jpg){style="display:block; margin:auto;" width="100%"}
+
+![](Images/question-mark.png){style="float: right;" width="30%"}
+
+Ci porremo delle **domande** sulla situazione del mercato di questo tipo di prodotto e analizzeremo i trend sui dati disponibili che spaziano dagli anni '70 al 2020 in cerca delle **risposte**, visualizzando le scoperte tramite grafici.
+
+Tutti i dati, sono stati ottenuti grazie a un **domain crawler** che ha estratto i contenuti più rilevanti dalle pagine di [Steam](https://store.steampowered.com/?l=italian) (popolare piattaforma di distribuzione) organizzandoli in più file csv pronti *o quasi* per essere utilizzati/trasformati/interpretati e fornire risposte ai nostri quesiti.
+
+![Logo di Steam](Images/steam_logo.png){style="display:block; margin:auto;" width="30%"}
+
+Ma prima di partire per questo viaggio... una breve introduzione!
+
+## 1.2 L'idea
+
+![](Images/light.jpg){style="float: right;" width="30%"}
+
+L'**idea** per il tema di questa analisi è nata durante la frequenza dei corsi di Videogame Programming, Human-Computer Interaction e Virtual Reality and Persuasive User Experience. In questi corsi, tutti dedicati, più o meno specificatamente ai videogiochi o comunque alle realtà virtuali, ho compreso che i videogiochi sono una grandissima **fonte di dati** di ogni genere nonchè un mondo con delle dinamiche estremamente complesse.
+
+![](Images/computer.png){style="float: left;" width="30%"}
+
+Infatti, un videogioco può essere considerato un'**opera d'arte** moderna, molto interattiva, complicata e varia: oltre a ciò che un'utente può fisicamente percepire di un'esperienza virtuale, c'è una componente nascosta o meno evidente che, però, è la parte fondamentale. Nella creazione di un videogioco si mischiano diverse scienze e diversi skill sets, dalla onnipresente **informatica** che già al suo interno contiene, fra le altre:
+
+-   la musica (audio digitale come colonne sonore, effetti, ambientali, ...)
+
+-   la matematica (algoritmi per la grafica, la fisica, intelligenza artificiale, compressione, ...)
+
+-   la grafica (texture, ombre, particellari, ...)
+
+-   la scienza dei dati (basi di dati per *qualsiasi* elemento del videogioco su cui poi fare data mining, reti, ma anche recentemente crypto-moneta, NFT ...)
+
+a quelle legate alla **psicologia** e ai **temi del sociale**, **usabilità** e in generale dell'**HCI** (Human Computer Interaction) dato che il mercato videoludico sta assumendo una **diffusione massiva** e raggiunge chiunque.
+
+![Ambiti dell'HCI](Images/HCI.jpg){style="display:block; margin:auto;" width="100%"}
+
+[Possiamo dire che un videogioco non è solo programmazione o intrattenimento per ragazzi!]{.underline}
+
+![Un videogioco come "La Gioconda"?](Images/Leonardo_Monna_Lisa_Gioconda.jpg){style="display:block; margin:auto;" width="75%"}
+
+Di qui, essendo io, un "veterano affezionato" di Steam (dal 2014) l'idea di affrontare la tematica in questa presentazione e cercare di capire cosa è cambiato dai primi videogiochi a ora nel mercato di questo genere di intrattenimento e, magari, trovare il prossimo titolo da acquistare...
+
+## 1.3 Soluzioni tecniche e domain crawler
+
+![](Images/gears.jpg){style="float: left;" width="30%"} In rete sono disponibili già alcuni dataset con tutte, o quasi, le informazioni che necessitiamo, ma non sono molto recenti o abbastanza precisi. L'ambito che stiamo trattando è in continua evoluzione e la piattaforma digitale che fornisce i dati possiede un numero molto elevato di utenti. Ho, quindi, optato per una semplice implementazione personalizzata di un domain crawler in Python simile a quello nel tutorial di Nik Davis disponibile [qui](https://nik-davis.github.io/posts/2019/steam-data-collection/) e sottoforma di Jupyter Notebook su [GitHub](https://github.com/nik-davis/steam-data-science-project).
+
+[Non ho incluso il codice del crawler nella presentazione o nei file, perchè l'implementazione è fuori dal nostro scopo principale!]{.underline}
+
+Steam espone già un'ampia gamma di APIs di basso livello realizzate dalla community per condurre questo tipo di analisi, il codice Python, infatti, sfrutta una di queste chiamata SteamSpy che possiede anche una [dashboard web](https://steamspy.com/).
+
+Nella sua forma più semplice e di basso livello un **crawler** esegue del parsing tramite linguaggi regolari (RegEx - [Extended] Regular Expressions) sul codice raw scaricato di tutte o specifiche pagine HTML appartenenti a un dominio partendo da un punto "base" di diramazione della ricerca, seguendo ricorsivamente tutti o alcuni dei link presenti che soddisfano una certa forma evitando i loop nella visita. Tutti i dati che corrispondono alle RegEx vengono salvati in qualche modalità, nel nostro caso in file csv.
+
+![Funzionamento del crawler](Images/crawler.jpg){style="display:block; margin:auto;" width="100%"}
+
+![Funzionamento del crawler bis](Images/crawler2.jpg){style="display:block; margin:auto;" width="100%"}
+
+Il crawling sul computer che dispongo è durato circa 3 giorni, dopo i quali ho deciso di fermare la ricerca (a circa 90 mila righe del file csv dei giochi) e cominciare l'analisi in R con i dati scaricati (quasi 175 MB). Dato che il crawling dipende in larga parte dai link di ogni pagina e le pagine vengono personalizzate in base agli interessi dell'account che le visita, degli amici, delle tendenze e ad altre variabili, non ho ottenuto dati di giochi troppo recenti (**1970 - 2020 principalmente**). In ogni caso, già si possono notare numerosi fenomeni e operare un'analisi abbastanza accurata.
+
+## 1.4 Il mercato dei videogiochi e concorrenza
+
+**Steam è la più grande piattaforma di distribuzione digitale in termini di utilizzatori e numero di prodotti venduti, nonchè una delle prime.**
+
+Ultimamente sono comparsi sulla scena numerosi concorrenti, uno fra tutti [EpicGames](https://store.epicgames.com/it/) (nato come casa di sviluppo per il celebre [*Fortnite*](https://www.epicgames.com/fortnite/it/home) divenuto un fenomeno sociale). Questi tentano di inserirsi nel monopolio creato negli anni da Steam, con politiche, scelte di business, prezzi di prodotti e commissioni diverse, spesso discutibili: **l'intrattenimento, com'è noto, è un mondo altamente competitivo** in cui il destino di ogni componente o ogni "player" è deciso in tempi brevissimi dalla critica e dagli utenti; in cui un errore, seppur minimo, può costare il fallimento di grandi aziende multinazionali.
+
+![Un concorrente di Steam](Images/Epic_Games_logo.png){style="display:block; margin:auto;" width="30%"}
+
+In Italia, come riportato [qui](https://www.ilsole24ore.com/art/nuovo-record-mercato-videogiochi-italia-ma-solo-grazie-nuove-console-AEMxE3LB), l'industria del gaming ha fruttato nel **2021** un totale di **2,243 miliardi di euro**, nel 2020 l'incremento a causa della pandemia da Covid19 è stato del 23% rispetto al 2019, mentre dal 2020 al 2021 è stato 2,9%.
+
+![Dati forniti da IIDEA (Italian Interactive Digital Entertainment Association che riunisce i player dell'industria gaming italiana)](Images/italia_gaming.png){style="display:block; margin:auto;" width="100%"}
+
+## 1.5 Un po' di storia: Steam fra successi, fallimenti e critica
+
+![Valve Corporation, precedentemente Valve software, produttrice, fra gli altri, di Half-Life, Team Fortress 2, Counter-Strike e Dota 2](Images/valve.jpg){style="display:block; margin:auto;" width="100%"}
+
+Ma torniamo a Steam. E' una piattaforma sviluppata da **Valve Corp.** (USA) che si occupa della vendita di copie digitali di videogiochi, altri software (modellazione, VR, ...) e servizi collegati (cloud dati, server multiplayer dedicati, sviluppo API come *Steamworks* per gestione di microtransazioni e contenuti creati tramite Steam Workshop, ...). Ha iniziato ad operare il 12 settembre del 2003 grazie a due fondatori: Gabe Newell e Mike Harrington entrambi ex-dipendenti Microsoft.
+
+![Gabe Newell conosciuto nella community come Gaben](Images/gaben.jpg){style="display:block; margin:auto;" width="75%"}
+
+![Mike Harrington](Images/Mike_Harrington.jpg){style="display:block; margin:auto;" width="75%"}
+
+Valve, oltre ad essere fondatrice di Steam e primo sviluppatore inserito, nel 1998 pubblicò *Half-Life*. Tale videogioco fu accolto dalla critica con recensioni molto positive, ricevendo elogi in numerose recensioni e venendo anche classificato come il miglior sparatutto di sempre da IGN (IGN è considerata come la fonte di recensioni più rilevante nell'intero panorama del gaming).
+
+Solamente due anni dopo *Half-Life*, Mike Harrington decise di abbandonare l'azienda.
+
+Negli anni, Steam è andata sempre più consolidandosi come LA piattaforma dove è possibile acquistare videogiochi e ampliando l'offerta con una diverse generazioni di una console propria (tentativi non sempre andati a buon fine), gli strumenti per la realtà virtuale, software di modellazione e animazione, servizi cloud, social e molto altro.
+
+Solamente nel 2016 Steam fu accusata da enti governativi di **favorire il gioco d'azzardo** minorile per via di software di terze parti, operanti con APIs di Steam che permettevano trading e scommesse di oggetti virtuali legati ai videogiochi. Steam intima a questi siti continuamente di terminare le attività e ha adottato dei cooldown sul trading da inventario per scoraggiare almeno le scommesse real-time e quelle su eventi e-sports che durano meno di una settimana.
+
+# 2. Tidy up
+
+## 2.1 Standardizzare il dataset
+
+Iniziamo il nostro viaggio nel mondo dei videogiochi cercando di **normalizzare il più possibile** i dati scaricati per facilitare le analisi successive.
+
+La normalizzazione avviene tramite applicazioni di **funzioni personalizzate** su colonne dei dati raw con `mutate`.
+
+In particolare concentriamo l'attenzione su:
+
+-   togliere caratteri non conformi allo charset "latin1" in quelle colonne in cui il contenuto è molto poco strutturato;
+
+-   convertire le date in un formato standard più gestibile;
+
+-   separare le colonne rilevanti che hanno più osservazioni al loro interno, in più righe, ognuna con una singola osservazione;
+
+-   creare nuove colonne con dati essenziali estratti da colonne a contenuto poco strutturato.
+
+In particolare, notiamo che nella colonna `developer` sono presenti più nomi separati da `,` che vorremmo fossero in righe diverse, le date in colonna `date` non sono in un formato standard e le colonne delle review e del prezzo hanno molte parti inutili che rendono complicata l'analisi.
+
+```{r tidy_up, include=FALSE}
+#str(steam_numbers_original)
+
+replace_obscure_stuff <- function(w){
+  converted<-iconv(w,"UTF-8","latin1", sub="")
+  if(converted=="" | is.na(w) | w=="-"){
+    return(NA)
+  }
+  return(converted)
+}
+
+months_translation <- matrix(1:12, byrow = TRUE, ncol = 12, dimnames = list("translation",c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")))
+
+parse_date_custom <- function(w){
+  if(is.na(w) | 
+     w=="-" | 
+    !str_detect(w, "^([a-zA-Z]{3,3}) ([0-9]{0,2}), ([0-9]{4,4})$")){
+    return (NA)
+  }
+  
+  #NB regexec returns a list holding information regarding only the location of the matches, hence regmatches requires the user to provide the string the match list belonged to
+  found <- regmatches(w, regexec("^([a-zA-Z]{3,3}) ([0-9]{0,2}), ([0-9]{4,4})$", w))
+  
+  found <- found[[1]]
+  norm_date <- sprintf("%s-%s-%s",found[[4]] , months_translation["translation",found[[2]]], found[[3]])
+  
+  return(norm_date)
+}
+
+extract_year <- function(w){
+  if(is.na(w)){
+    return(NA)
+  }
+  
+  found <- regmatches(w, regexec("^([0-9]{4})\\-[0-9]{0,2}\\-[0-9]{0,2}$", w))
+  return(found[[1]][[2]])
+}
+
+extract_category <- function(x){
+  if(is.na(x)){
+    return("MX")
+  }
+  
+  foundSP <- str_detect(x, "Single-player")
+  foundMP <- str_detect(x, "Multiplayer")
+  foundMMO <- str_detect(x, "MMO")
+  
+  if(foundMP & !foundMMO & !foundSP){
+    return("MPO") #multy-player only
+  }
+  if(foundMMO & !foundSP){
+    return("MMOO") #mmo only
+  }
+  if(foundSP & !foundMP & !foundMMO){
+    return("SPO") #single-player only
+  }
+  
+  return("MX") #mixed
+}
+
+
+extract_price <- function(x){
+  x_std <- iconv(x,"UTF-8","latin1", sub="") #emoji non vanno d'accordo con regex
+  if(x_std == "-" | 
+     !(str_detect(x_std, "\\$([0-9]+\\.[0-9]+)Add to Cart") | 
+       str_detect(tolower(x_std), "free to play"))){
+    return(NA)
+  }
+  
+  if(str_detect(tolower(x_std), "free to play")){
+    return(as.double(0))
+  }
+  
+  found <- regmatches(x_std, regexec("\\$([0-9]+\\.[0-9]+)Add to Cart", x_std))
+  
+  return(as.double(found[[1]][[2]]))
+}
+
+parse_reviews <- function(x){
+  if(is.na(x) | 
+     !str_detect(x, "[a-zA-Z ]+\\([0-9,]+\\)- [0-9]+%")){
+    return(NA)
+  }
+  
+  found <- regmatches(x, regexec("([a-zA-Z ]+)\\(([0-9,]+)\\)- ([0-9]+)%", x))
+  return(paste(found[[1]][[2]], str_replace_all(found[[1]][[3]], ",", ""),found[[1]][[4]], sep=";"))
+}
+
+steam_numbers_norm <- steam_numbers_original %>%
+  mutate(date=sapply(date, parse_date_custom)) %>%
+  mutate(year_of_pub=sapply(date, extract_year)) %>%
+  mutate(category_norm=sapply(categories, extract_category)) %>%
+  mutate(price_norm=sapply(price, extract_price)) %>%
+  mutate(review_salient=sapply(all_reviews, parse_reviews)) %>%
+  mutate(review_salient30d=sapply(user_reviews, parse_reviews)) %>%
+  separate(review_salient, c("mood","total","positive%"), sep=";", convert=TRUE) %>%
+  separate(review_salient30d, c("mood30d","total30d","positive%30d"), sep=";", convert=TRUE) %>%
+  separate_rows(developer, sep = ", ") %>%
+  separate_rows(publisher, sep = ", ") %>%
+  mutate(publisher=sapply(publisher, replace_obscure_stuff)) %>%
+  mutate(developer=sapply(developer, replace_obscure_stuff)) %>%
+  #dopo separate_rows tramite ',' si creano nomi senza senso
+  #es Capcom U.S.A., Inc. diventa separato in due, simile per CAPCOM CO., LTD
+  #cerco di filtrare via questi casi
+  filter(!str_detect(tolower(replace_na(publisher, "")), "^(ltd|inc|llc)\\.?$")) %>%
+  filter(!str_detect(tolower(replace_na(developer, "")), "^(ltd|inc|llc)\\.?$"))
+```
+
+Passiamo dal dataset così strutturato:
+
+```{r tidy_up_result1, echo=FALSE}
+glimpse(steam_numbers_original)
+```
+
+al dataset tidy:
+
+```{r tidy_up_result2, echo=FALSE}
+glimpse(steam_numbers_norm)
+```
+
+dove le colonne rappresentano:
+
+1.  `url` url alla pagina del videogioco;
+
+2.  `name` titolo del videogioco;
+
+3.  `categories` categoria a cui il videogioco appartiene;
+
+4.  `img_url` url all'immagine di copertina del gioco;
+
+5.  `user_reviews` reviews per quel videogioco degli ultimi 30 giorni non standard;
+
+6.  `all_reviews` reviews per quel videogioco non standard;
+
+7.  `date` data pubblicazione del videogioco;
+
+8.  `developer` sviluppatore videogioco;
+
+9.  `publisher` editore del videogioco;
+
+10. `price` prezzo del videogioco non standard;
+
+11. `pegi` valutazione Pan European Game Information;
+
+12. `pegi_url` url alla valutazione PEGI;
+
+13. `year_of_pub` anno di pubblicazione del videogioco (solo l'anno);
+
+14. `category_norm` categoria normalizzata a cui il videogioco appartiene (una fra MMO, SPO, MX, MPO);
+
+15. `price_norm` prezzo del videogioco normalizzato (solo il valore)
+
+16. `mood` valutazione complessiva delle reviews (ad esempio `Very positive`, `Mostly negative`, ...)
+
+17. `total` numero di reviews in totale
+
+18. `positive%` percentuale delle reviews positive
+
+19. `mood30d` valutazione complessiva delle reviews degli ultimi 30 giorni (ad esempio `Very positive`, `Mostly negative`, ...)
+
+20. `total30d` numero totale delle reviews negli ultimi 30 giorni;
+
+21. `positive%30d` percentuale delle reviews positive negli ultimi 30 giorni.
+
+# 3. Una Visione complessiva
+
+## 3.1 Dati generali del dataset
+
+![](Images/lente.jpg){style="float: right;" width="30%"}
+
+Presentiamo alcuni dati di carattere generale del dataset.
+
+```{r num_of_games, include=FALSE}
+num_of_games <- steam_numbers_norm%>%
+  select(name) %>%
+  distinct(name) %>%
+  summarize(count=n())
+num_of_games
+```
+
+```{r num_of_publishers, include=FALSE}
+num_pub=steam_numbers_norm%>%
+  select(publisher) %>%
+  distinct(publisher) %>%
+  #arrange(publisher)
+  summarise(count=n())
+num_pub
+```
+
+```{r num_of_devs, include=FALSE}
+num_dev=steam_numbers_norm%>%
+  select(developer) %>%
+  distinct(developer) %>%
+  #arrange(developer)
+  summarise(count=n())
+num_dev
+```
+
+```{r general_considerations, include=FALSE}
+devs_per_pub <- num_dev/num_pub
+games_per_dev <- num_of_games/num_dev
+pub_per_game <- num_pub/num_of_games
+```
+
+Il dataset dopo la standardizzazione contiene `r as.integer(num_of_games)` fra videogiochi e software, `r as.integer(num_pub)` editori e `r as.integer(num_dev)` sviluppatori. Ciò significa che mediamente ci sono:
+
+-   `r devs_per_pub` sviluppatori per ogni editore;
+
+-   `r games_per_dev` videogiochi per ogni siluppatore;
+
+-   appena `r pub_per_game` editori per ogni gioco.
+
+La discrepanza fra il numero di sviluppatori ed editori è giustificata in quanto solitamente questi ultimi sono responsabili della produzione e commercializzazione dei loro prodotti, compresi **aspetti pubblicitari** e **ricerche di mercato**. Normalmente, le case editrici di videogiochi finanziano lo sviluppo del videogioco che esse vogliono pubblicare e commercializzare, **pagando l'azienda che lo sviluppa** (nel caso di sviluppo esterno) e a volte pagando personale interno di sviluppatori chiamato "studio". Lo studio è una divisione di una compagnia editrice che agisce da sviluppatore ed è molto indipendente dal resto dell'azienda, escluso il lato economico.
+
+I maggiori editori di videogiochi si incaricano anche della loro **distribuzione**, mentre quelli più piccoli si rivolgono ad apposite aziende di distribuzione (o agli editori maggiori) per distribuire i giochi da essi pubblicati.
+
+Altri compiti normalmente a carico degli editori di videogiochi comprendono:
+
+-   la **decisione di utilizzare o meno licenze** per il gioco da pubblicare;
+
+-   il **pagamento delle licenze** che si decidono di utilizzare;
+
+-   la gestione della **localizzazione**;
+
+-   l'impaginazione, **la stampa** e l'eventuale stesura del **manuale utente**;
+
+-   la creazione di elementi grafici come il **disegno della confezione**.
+
+Gli editori maggiori possono anche cercare di aumentare l'efficienza tra tutti i gruppi di sviluppo interni ed esterni, fornendo **servizi come effetti sonori e pacchetti software per le funzionalità più comuni**.
+
+Insomma, essere un editore comporta grandi oneri e responsabilità, per questo avere un editore importante è anche un ottimo "biglietto da visita" per uno sviluppatore, ma lo vedremo più in dettaglio nel seguito, oltre ad analizzare coloro che risultano essere i principali editori e la rete creata dalle relazioni Developer-Publisher.
+
+## 3.2 Videogiochi su Steam nel tempo
+
+![](Images/clock.png){style="float: right;" width="30%"}
+
+**Il settore dei videogiochi è cresciuto esponenzialmente.**
+
+Dal grafico sottostante si nota un andamento estremamente ripido nella crescita delle pubblicazioni dal 2005 in poi. [La crescita sembra inarrestabile, ma lo è davvero?]{.underline}
+
+Probabilmente sì, se consideriamo che fra 2019 e 2020 il **contraccolpo della pandemia** da Covid ha coinvolto tutti i settori e il gaming è uno di questi. Infatti si nota un timido (in confronto alla serie di aumenti precedenti) calo. Ricordo che in quel periodo gli annunci di pubblicazioni per prodotti nuovi o contenuti aggiuntvi / aggiornamenti per quelli già esistenti subirono grossi ritardi.
+
+Considerato quello che comunica IIDEA, riguardo all'Italia, il contraccolpo è già stato assorbito e si stanno rapidamente recuperando tutti i contenuti programmati in precedenza e ritadati dalla pandemia!
+
+```{r games_per_year, include=FALSE}
+games_in_a_year<-steam_numbers_norm %>%
+  distinct(name, .keep_all = TRUE) %>%
+  select(year_of_pub) %>%
+  filter(!is.na(year_of_pub)) #%>%
+  #count(year_of_pub)
+games_in_a_year
+
+games_in_a_year_grouped <- games_in_a_year %>%
+  count(year_of_pub)
+games_in_a_year_grouped
+
+min_year <- min(games_in_a_year[["year_of_pub"]])
+max_year <- max(games_in_a_year[["year_of_pub"]])
+max_number <- max(games_in_a_year_grouped[["n"]])
+```
+
+```{r games_per_year_result, echo=FALSE}
+#VECCHIO
+#seq praticamente è il range() di python
+#hist(games_in_a_year[["year_of_pub"]], xlab = "Anno", ylab = "Numero di pubblicazioni", main = "Numero di pubblicazioni per anno", breaks = c(min_year:max_year), col = "gold", axes=FALSE)
+#axis(side=1, at=seq(min_year-0.5, max_year-0.5, 1), labels=seq(min_year, max_year, 1), las=2)
+#axis(side=2, at=seq(0,max_number+1000, 1000), labels=seq(0,max_number+1000, 1000), las=2)
+
+#CON GGPLOT
+ggplot(data = games_in_a_year_grouped)+
+  geom_col(mapping = aes(x=.data[["year_of_pub"]], y=.data[["n"]]))+
+  labs(
+    title = "Videogiochi nel tempo",
+    subtitle = "Numero di pubblicazioni per anno di videogiochi sulla piattaforma Steam",
+    x = "Anno",
+    y = "Numero pubblicazioni"
+  )+
+  scale_x_discrete(breaks = seq(min_year, max_year, by = 5))
+```
+
+## 3.3 Videogiochi VR[^1] nel tempo
+
+[^1]: Nel nostro caso Steam vende solamente prodotti realmente **V**R, nella sezione [3.3.1 VR, AR, XR, MR: che confusione, un chiarimento!] discutiamo della caratterizzazione di molte sigle utilizzate nel marketing in modo errato.
+
+![](Images/vr.png){style="float: right;" width="30%"}
+
+Nel corso di Virtual Reality and Persuasive User Experience ho sentito dire che [l'esperienza VR sta diventando sempre più popolare. Sarà vero?]{.underline}
+
+Nel complesso, i giochi che supportano la realtà virtuale tendono ad essere giochi *solo* per la realtà virtuale, date le difficoltà tecniche del cosiddetto "porting". Il picco del VR è arrivato nel 2016-2017, dove il clamore dalla realtà virtuale era altissimo. Da allora, il mercato è rimasto per lo più stabile o in leggero calo in termini di pubblicazioni, contrariamente alle aspettative del periodo (ricordo che desideravo comprare un visore anche io...). **I videogiochi VR sono ancora una piccola frazione dei giochi su Steam e neanche il rilascio di Half-Life Alyx nel marzo 2020, che ha portato all'acquisto di numerosi visori, ha risollevato il trend.**
+
+Più che altro, sviluppare per VR riduce di molto il bacino degli acquirenti, perciò è un rischio che pochi desiderano assumersi.
+
+```{r VR_games_per_year, include=FALSE}
+vr_games<-steam_numbers_norm %>%
+  distinct(name, .keep_all = TRUE) %>%
+  filter(str_detect(price, "VR Only|Supported")) %>%
+  mutate(vr_only=str_detect(price, "VR Only"))
+vr_games
+  
+vr_in_a_year<-vr_games %>%
+  select(year_of_pub, vr_only) %>%
+  filter(!is.na(year_of_pub))
+vr_in_a_year
+
+vr_in_a_year_grouped <- vr_in_a_year %>%
+  count(vr_only, year_of_pub)
+vr_in_a_year_grouped
+
+min_year <- min(vr_in_a_year_grouped[["year_of_pub"]])
+max_year <- max(vr_in_a_year_grouped[["year_of_pub"]])
+max_number <- max(vr_in_a_year_grouped[["n"]])
+```
+
+```{r VR_games_per_year_result, echo=FALSE}
+ggplot(data = vr_in_a_year)+
+  geom_bar(mapping = aes(x=.data[["year_of_pub"]], fill=.data[["vr_only"]]))+
+  labs(
+    title = "Videogiochi VR",
+    subtitle = "Numero di pubblicazioni per anno di videogiochi con supporto per VR",
+    x = "Anno",
+    y = "Numero pubblicazioni"
+  )+
+  guides(fill=guide_legend(title="Supporto VR"))+
+  scale_fill_discrete(labels=c("VR Supportato","Esclusivamente VR"))+
+  scale_x_discrete(breaks=seq(min_year, max_year, by = 2))
+```
+
+## 3.3.1 VR, AR, XR, MR: che confusione, un chiarimento!
+
+L'uso di queste sigle molto spesso non è chiaro e vengono di proposito utilizzate dal marketing in maniera "click-bait", ma incorretta. Proponiamo, quindi, un chiarimento nell'immagine sottostante.
+
+![Continuum della XR (Extended Reality o Cross Reality), l'insieme di AR, MR, VR](Images/vr_ar_xr.png){style="display:block; margin:auto;" width="100%"}
+
+## 3.4 Categorie di videogiochi nel tempo
+
+![](Images/category.png){style="float: right;" width="30%"}
+
+[In una società in cui siamo tutti connessi, vanno di più i giochi multiplayer?]{.underline}
+
+**Assolutamente no!** La maggior parte dei giochi rilasciati sono solo per giocatore singolo, nonostante Steam ospiti le più grandi comunità di gioco online. Questo è in genere spiegato dal fatto che i giochi online sono una scommessa pericolosa. La maggior parte di questi non riesce a trovare un pubblico e, se ciò accade, è destinata a perdere terreno se nessuno li gioca: questo distrugge le prospettive di vendita presenti e future per le aziende. I giochi per giocatore singolo non hanno questo problema: possono attrarre i giocatori anche anni dopo, perciò sono più convenienti dal punto di vista del business.
+
+```{r game_categories_per_year, include=FALSE}
+categorized_games<-steam_numbers_norm %>%
+  distinct(name, .keep_all = TRUE) %>%
+  filter(!is.na(year_of_pub))
+categorized_games
+
+categorized_games_grouped <- categorized_games %>%
+  select(category_norm, year_of_pub) %>%
+  count(category_norm, year_of_pub)
+categorized_games_grouped
+
+min_year <- min(categorized_games_grouped[["year_of_pub"]])
+max_year <- max(categorized_games_grouped[["year_of_pub"]])
+```
+
+```{r game_categories_per_year_result, echo=FALSE}
+ggplot(data = categorized_games)+
+  geom_bar(mapping = aes(x=.data[["year_of_pub"]], fill=.data[["category_norm"]]))+
+  labs(
+    title = "Categorie videogiochi",
+    subtitle = "Numero di pubblicazioni per anno di videogiochi di data categoria",
+    x = "Anno",
+    y = "Numero pubblicazioni"
+  )+
+  guides(fill=guide_legend(title="Categorie"))+
+  scale_fill_discrete(labels=c("Solo MMO", "Multiplayer no MMO", "Altro", "Solo Singleplayer"))+
+  scale_x_discrete(breaks=seq(min_year, max_year, by = 5))
+```
+
+# 4. Prezzi
+
+## 4.1 Il costo del gioco
+
+![](Images/money.png){style="float: right;" width="30%"}
+
+[Molte piattaforme di distribuzione promettono intrattenimento a prezzi contenuti. Davvero?]{.underline}
+
+Solamente guardando la mediana e le medie, non c'è una tendenza evidente nel tempo. Il **prezzo dei giochi su Steam sembra abbastanza stabile**. Notiamo che la **maggior parte dei giochi su Steam sono al di sotto del prezzo di 5 USD** (e la maggior parte dei giochi su Steam non ha un pubblico rilevante, motivo per cui alcuni utenti si riferiscono a molti titoli su Steam come "shovelware[^2]").
+
+[^2]: Shovelware è un termine usato in ambito informatico e si riferisce ad un prodotto software di scarsa qualità immesso sul mercato però in grandi quantità, e che spesso appare sugli scaffali senza che se ne sia mai sentito parlare prima ([Wikipedia](https://it.wikipedia.org/wiki/Shovelware)).
+
+N.B.: Caso particolare il 2021 in cui il crawler non è riuscito a scaricare molti titoli, per cui sembra che il prezzo medio sia sproporzionato rispetto agli anni precedenti.
+
+La divisione tra media e mediana dal 2004 in poi, indica che la distribuzione è tutt'altro che standard (mediana per lo più minore alla media).
+
+```{r game_prices_general, include=FALSE}
+games_w_prices<-steam_numbers_norm %>%
+  distinct(name, .keep_all = TRUE) %>%
+  filter(!is.na(year_of_pub))
+games_w_prices
+
+games_prices_summarized <- games_w_prices %>%
+  filter(!is.na(price_norm)) %>%
+  group_by(year_of_pub) %>%
+  mutate(mean_price_per_year=mean(price_norm)) %>%
+  mutate(median_price_per_year=median(price_norm)) %>%
+  select(year_of_pub,mean_price_per_year,median_price_per_year)
+games_prices_summarized
+
+min_year <- min(games_prices_summarized[["year_of_pub"]])
+max_year <- max(games_prices_summarized[["year_of_pub"]])
+```
+
+```{r game_prices_general_result, echo=FALSE}
+ggplot(data = games_prices_summarized)+
+  geom_line(mapping = aes(x=.data[["year_of_pub"]], y=.data[["mean_price_per_year"]], color="Media", group = 1))+
+  geom_line(mapping = aes(x=.data[["year_of_pub"]], y=.data[["median_price_per_year"]], color="Mediana", group = 1))+
+  labs(
+    title = "Prezzi in generale",
+    subtitle = "Prezzo medio di un videogioco e mediana prezzi per anno",
+    x = "Anno",
+    y = "USD"
+  )+
+  guides(colour=guide_legend(title="Legenda"))+
+  scale_x_discrete(breaks = seq(min_year, max_year, by = 5))
+```
+
+[Per un'esplorazione ancora più dettagliata, controlliamo se la categoria a cui appartiene il videogioco è correlata a un prezzo mediamente superiore o inferiore.]{.underline} Ci aspettiamo che i videogiochi multiplayer costino più degli altri per la quantità maggiore di risorse impiegate nella produzione e per i vari servizi richiesti (server dedicati, codice aggiuntivo per la gestione del multigiocatore, anti-cheat, ...). E' davvero così?
+
+**Guardando i due grafici sotto riportati, si nota che, sorprendentemente, non è sempre stato così**, in particolare nel secondo. In quest'ultimo, per facilitare la lettura, abbiamo utilizzato una classificazione meno dettagliata che distingue solamente fra multiplayer e singleplayer, rimuovendo il genere misto e unificando gli altri (MPO e MMO).
+
+Negli ultimi tempi i videogiochi multiplayer pubblicati sono mediamente più costosi, ma ciò non è vero per i giochi più vecchi. Una spiegazione plausibile a questo fenomeno potrebbe essere che, in passato, siccome il multigiocatore era meno diffuso e l'infrastruttura di connessione non permetteva performance accettabili per il gioco on-line, i videogiochi multiplayer erano pochi e venduti a basso prezzo per cercare di raggiungere un pubblico più vasto (e coprire così i maggiori costi di produzione).
+
+Ora che Internet è molto sviluppato e tutti possono provare l'esperienza del multigiocatore (aumento pubblico), la concorrenza è aumentata, facendo alzare la qualità media del prodotto e non solo. Se ciò accade, il carico computazionale per un videogioco di alta qualità con molti più giocatori è, normalmente, superiore al normale. Quindi il prezzo per l'infrastruttura che consente le comunicazioni, la gestione dei dati, i controlli e la sicurezza (contro attacchi di qualsiasi tipo e player poco onesti) è aumentato enormemente.
+
+```{r price_multiplayer_years, include=FALSE}
+games_prices_summarized_multi_single <- games_w_prices %>%
+  filter(!is.na(price_norm)) %>%
+  group_by(year_of_pub, category_norm) %>%
+  mutate(mean_price_per_year=mean(price_norm)) %>%
+  mutate(median_price_per_year=median(price_norm)) %>%
+  select(year_of_pub,mean_price_per_year,median_price_per_year, category_norm)
+games_prices_summarized_multi_single
+
+min_year <- min(games_prices_summarized[["year_of_pub"]])
+max_year <- max(games_prices_summarized[["year_of_pub"]])
+```
+
+```{r price_multiplayer_years_result, echo=FALSE}
+ggplot(data = games_prices_summarized_multi_single)+
+  geom_line(mapping = aes(x=.data[["year_of_pub"]], y=.data[["mean_price_per_year"]], color=.data[["category_norm"]], group = .data[["category_norm"]], linetype="solid"))+
+  geom_line(mapping = aes(x=.data[["year_of_pub"]], y=.data[["median_price_per_year"]], color=.data[["category_norm"]], group = .data[["category_norm"]], linetype="twodash"))+
+  labs(
+    title = "Prezzi per categoria negli anni",
+    subtitle = "Prezzo medio di un videogioco e mediana prezzi per anno divisi fra single/multiplayer",
+    x = "Anno",
+    y = "USD"
+  )+
+  guides(colour=guide_legend(title="Categoria"),linetype=guide_legend(title="Media/Mediana"))+
+  scale_color_discrete(labels=c("Solo MMO", "Multiplayer no MMO", "Altro", "Solo Singleplayer"))+
+  scale_linetype_discrete(labels=c("Media", "Mediana"))+
+  scale_x_discrete(breaks = seq(min_year, max_year, by = 5))
+```
+
+```{r price_multiplayer_years_simplified, include=FALSE}
+remove_too_many_categories <- function(x){
+  if(x=="MX"){
+    return(NA)
+  }
+  if(x=="SPO"){
+    return(x)
+  }
+  return("GMP")
+}
+
+games_prices_summarized_multi_single_simplified <- games_w_prices %>%
+  filter(!is.na(price_norm)) %>%
+  mutate(category_norm=sapply(category_norm, remove_too_many_categories)) %>%
+  filter(!is.na(category_norm)) %>%
+  group_by(year_of_pub, category_norm) %>%
+  mutate(mean_price_per_year=mean(price_norm)) %>%
+  mutate(median_price_per_year=median(price_norm)) %>%
+  select(year_of_pub,mean_price_per_year,median_price_per_year, category_norm)
+games_prices_summarized_multi_single
+
+min_year <- min(games_prices_summarized[["year_of_pub"]])
+max_year <- max(games_prices_summarized[["year_of_pub"]])
+```
+
+```{r price_multiplayer_years_simplified_result, echo=FALSE}
+ggplot(data = games_prices_summarized_multi_single_simplified)+
+  geom_line(mapping = aes(x=.data[["year_of_pub"]], y=.data[["mean_price_per_year"]], color=.data[["category_norm"]], group = .data[["category_norm"]], linetype="solid"))+
+  geom_line(mapping = aes(x=.data[["year_of_pub"]], y=.data[["median_price_per_year"]], color=.data[["category_norm"]], group = .data[["category_norm"]], linetype="twodash"))+
+  labs(
+    title = "Prezzi per categoria negli anni semplificato",
+    subtitle = "Prezzo medio di un videogioco e mediana prezzi per anno per ogni categoria",
+    x = "Anno",
+    y = "USD"
+  )+
+  guides(colour=guide_legend(title="Categoria"),linetype=guide_legend(title="Media/Mediana"))+
+  scale_color_discrete(labels=c("Multiplayer Generico", "Solo Singleplayer"))+
+  scale_linetype_discrete(labels=c("Media", "Mediana"))+
+  scale_x_discrete(breaks = seq(min_year, max_year, by = 5))
+```
+
+## 4.2 Fasce di prezzo nel tempo
+
+![](Images/price_cat.png){style="float: right;" width="30%"}
+
+[La media e la mediana non ci bastano per ottenere un panorama accurato del mercato. Entriamo nei dettagli delle fasce di prezzo!]{.underline}
+
+Dividendo i prezzi in categorie, **osserviamo che ci sono più giochi free-to-play negli ultimi anni**. I giochi fino a 5 USD costituiscono ancora una grossa parte dei videogiochi venduti su Steam e il loro rapporto è sostanzialemnte stabile, ma **notiamo anche un lieve aumento dei prezzi**. Infatti, la categoria 5-10 USD diminuisce costantemente, ma vediamo **aumenti fra i titoli 15-20 USD**. Questi cambiamenti nella fascia bassa e nella fascia media tengono stabile il prezzo medio, come abbiamo visto prima.
+
+```{r price_categories_years, include=FALSE}
+games_w_prices_categorized <- games_w_prices %>%
+  filter(!is.na(price_norm)) %>%
+  mutate(cuts=cut(price_norm, c(0,5,10,15,20,25,30,35,40,45,50,55,60,+Inf), include_lowest=TRUE, right=FALSE)) %>%
+  select(cuts, year_of_pub)
+games_w_prices_categorized
+
+min_year <- min(games_w_prices_categorized[["year_of_pub"]])
+max_year <- max(games_w_prices_categorized[["year_of_pub"]])
+```
+
+```{r price_categories_years_results1, echo=FALSE}
+ggplot(data = games_w_prices_categorized)+
+  geom_bar(mapping = aes(x=.data[["year_of_pub"]], fill=.data[["cuts"]]))+
+  labs(
+    title = "Fasce di prezzo assolute",
+    subtitle = "Numero di pubblicazioni per anno di videogiochi in ogni fascia di prezzo",
+    x = "Anno",
+    y = "Numero pubblicazioni"
+  )+
+  guides(fill=guide_legend(title="Categorie prezzo USD\n(incluso, escluso)"))+
+  scale_fill_discrete(labels=c("Fino a 5 USD",
+                               "Fra 5 e 10 USD",
+                               "Fra 10 e 15 USD",
+                               "Fra 15 e 20 USD",
+                               "Fra 20 e 25 USD",
+                               "Fra 25 e 30 USD",
+                               "Fra 30 e 35 USD",
+                               "Fra 35 e 40 USD",
+                               "Fra 40 e 45 USD",
+                               "Fra 45 e 50 USD",
+                               "Fra 50 e 55 USD",
+                               "Fra 55 e 60 USD",
+                               "Più di 60 USD"))+
+  scale_x_discrete(breaks = seq(min_year, max_year, by = 5))
+```
+
+```{r price_categories_years_results2, echo=FALSE}
+ggplot(data = games_w_prices_categorized %>%
+         filter(year_of_pub>=2000, year_of_pub<=2020))+
+  geom_bar(mapping = aes(x=.data[["year_of_pub"]], fill=.data[["cuts"]]), position = "fill")+
+  labs(
+    title = "Fasce di prezzo relative",
+    subtitle = "Numero percentuale di pubblicazioni per anno di videogiochi in ogni fascia di prezzo",
+    x = "Anno",
+    y = "Percentuale di tutti i giochi in quell'anno"
+  )+
+  guides(fill=guide_legend(title="Categorie prezzo USD\n(incluso, escluso)"))+
+  scale_fill_discrete(labels=c("Fino a 5 USD",
+                               "Fra 5 e 10 USD",
+                               "Fra 10 e 15 USD",
+                               "Fra 15 e 20 USD",
+                               "Fra 20 e 25 USD",
+                               "Fra 25 e 30 USD",
+                               "Fra 30 e 35 USD",
+                               "Fra 35 e 40 USD",
+                               "Fra 40 e 45 USD",
+                               "Fra 45 e 50 USD",
+                               "Fra 50 e 55 USD",
+                               "Fra 55 e 60 USD",
+                               "Più di 60 USD"))+
+  scale_x_discrete(breaks = seq(min_year, max_year, by = 5))
+```
+
+```{r price_categories_years_percentages, include=FALSE}
+games_in_a_year_grouped_mod<-games_in_a_year_grouped %>%
+               rename(year_of_pubX=year_of_pub)
+games_in_a_year_grouped_mod
+
+games_w_prices_categorized2 <- games_w_prices_categorized %>%
+  count(year_of_pub, cuts) %>%
+  rename(year_of_pubY=year_of_pub) %>%
+  inner_join(games_in_a_year_grouped_mod, by=c("year_of_pubY"="year_of_pubX"), keep=TRUE) %>%
+  mutate(percentage_of_price_category_per_year=n.x/n.y) %>%
+  select(year_of_pubX, cuts, percentage_of_price_category_per_year) %>%
+  rename(year_of_pub=year_of_pubX) %>%
+  arrange(year_of_pub, cuts)
+games_w_prices_categorized2
+```
+
+## 4.3 Ha senso cercare un publisher?
+
+![](Images/publisher.jpg){style="float: right;" width="30%"}
+
+[Come già anticipato: ipotizziamo di essere una piccola casa di sviluppo che vuole affermarsi nella galassia gaming, c'è qualche differenza nell'avere un editore pronto ad acquistare i diritti del nostro prodotto?]{.underline}
+
+**Come possiamo vedere dal grafico, avere un editore è correlato a un prezzo medio maggiore.**
+
+Significa che gli editori devono compensare gli sforzi di marketing e ciò implica prezzi elevati? O magari è fondamentale aggiudicarsi un editore se vogliamo vendere il nostro prodotto a un prezzo più alto?
+
+**Il fattore più probabile è che quando un gioco viene accettato da un editore, è già un segno di qualità** (un buon "biglietto da visita" come lo abbiamo definito prima), che merita un prezzo migliore della media.
+
+Inoltre, gli editori tendono ad avere una grande quantità di dati su cui ottimizzare la loro strategia di vendita, mantenendo i volumi sufficientemente alti: è più probabile che siano in grado di prendere decisioni ottimali per massimizzare i profitti[^3] e non solo i ricavi[^4].
+
+[^3]: valore monetario derivato dalla differenza fra ricavi e costi di gestione dell'attività in questione.
+
+[^4]: valore monetario totale delle entrate.
+
+Infine, gli sviluppatori senza editori potrebbero essere tentati di abbassare i prezzi per essere più visibili e cercare di raggiungere una platea più ampia in questo modo, dato che non hanno un nome conosciuto ed è meno rischioso di tentare strategie di marketing più avanzate.
+
+```{r publisher_yes_no, include=FALSE}
+games_wo_publisher_prices<-steam_numbers_norm %>%
+  filter(is.na(publisher), .keep_all=TRUE) %>%
+  distinct(name, .keep_all=TRUE) %>%
+  filter(!is.na(year_of_pub)) %>%
+  filter(!is.na(price_norm))
+games_wo_publisher_prices
+
+games_wo_publisher_prices_summarized <- games_wo_publisher_prices %>%
+  group_by(year_of_pub) %>%
+  mutate(mean_price_per_year=mean(price_norm)) %>%
+  select(year_of_pub, mean_price_per_year)
+games_wo_publisher_prices_summarized
+
+games_w_publisher_prices<-steam_numbers_norm %>%
+  filter(!is.na(publisher), .keep_all=TRUE) %>%
+  distinct(name, .keep_all=TRUE) %>%
+  filter(!is.na(year_of_pub)) %>%
+  filter(!is.na(price_norm))
+games_w_publisher_prices
+
+games_w_publisher_prices_summarized <- games_w_publisher_prices %>%
+  group_by(year_of_pub) %>%
+  mutate(mean_price_per_year=mean(price_norm)) %>%
+  select(year_of_pub, mean_price_per_year)
+games_w_publisher_prices_summarized
+
+min_year <- min(games_wo_publisher_prices_summarized[["year_of_pub"]])
+max_year <- max(games_wo_publisher_prices_summarized[["year_of_pub"]])
+```
+
+```{r publisher_yes_no_result, echo=FALSE}
+ggplot()+
+  geom_line(data=games_w_publisher_prices_summarized, 
+            mapping = aes(x=.data[["year_of_pub"]], y=.data[["mean_price_per_year"]], color="Con publisher", group = 1))+
+  geom_line(data=games_wo_publisher_prices_summarized, 
+            mapping = aes(x=.data[["year_of_pub"]], y=.data[["mean_price_per_year"]], 
+                          color="No publisher", group = 1))+
+  labs(
+    title = "E' utile avere un publisher?",
+    subtitle = "Prezzo medio dei videogiochi divisi per anno di pubblicazione e per presenza di un publisher",
+    x = "Anno",
+    y = "USD"
+  )+
+  guides(colour=guide_legend(title="Legenda"))+
+  scale_x_discrete(breaks = seq(min_year, max_year, by = 5))
+```
+
+# 5. Recensioni
+
+## 5.1 I giochi più belli di sempre (un primo posto inaspettato)
+
+![](Images/podio.png){style="float: right;" width="30%"}
+
+[Parlando di videogiochi, non potevamo non domandarci qual è il miglior gioco di sempre...]{.underline}
+
+**La top 10 ci regala un risultato inaspettato**, almeno per quanto mi riguarda!
+
+```{r best_games, echo=FALSE}
+best_games <- steam_numbers_norm %>%
+  distinct(name, .keep_all = TRUE) %>%
+  arrange(-`positive%`, -`positive%30d`) %>%
+  filter(total > 10000) %>%
+  select(name, date, all_reviews, user_reviews, category_norm, url)
+best_games
+```
+
+Infatti, ho avuto modo di giocare tutti i titoli o, almeno, li conosco per la fama di cui godono nella gaming community, oppure ho visto alcuni gameplay su piattaforme come YouTube, Twitch, ... per decidere se acquistarli in passato.
+
+L'unico che non avevo mai sentito nominare è, ironicamente, il vincitore della classifica!
+
+```{r henry_stickmin_collection, include=FALSE}
+#voglio tutte le info riguardanti il gioco che abbiamo, let's go
+best_title <- best_games %>%
+  slice_head() %>%
+  select(name)
+best_title_string <- best_title[["name"]][[1]]
+best_title_string
+
+henry_stick_coll <- steam_numbers_norm %>%
+  filter(name == best_title_string) %>%
+  rename(urlX=url) %>%
+  inner_join(
+    (steam_text_original %>%
+       rename(urlY=url)
+     ), by=c("urlX"="urlY"), keep=TRUE)
+henry_stick_coll
+
+henry_stick_coll_not_norm <- steam_numbers_original %>%
+  filter(name == best_title_string) %>%
+  select(developer, publisher)
+henry_stick_coll_not_norm
+img_url <- henry_stick_coll[["img_url"]][[1]]  
+```
+
+Vediamo alcune informazioni salienti sul titolo vincitore (*`r best_title_string`*) incrociando tramite join i dati dell'ormai noto dataset già usato durante l'analisi e un secondo dataset creato dal mio crawler che raccoglie le informazioni testuali, meno strutturate, legate a ogni gioco presente nel primo.
+
+| Feature            | Dati                                                                         |
+|---------------------|---------------------------------------------------|
+| Titolo             | `r best_title_string`                                                        |
+| Url                | `r henry_stick_coll[["urlX"]][[1]]`                                          |
+| Copertina          | ![](%60r%20img_url%60)                                                       |
+| Reviews Totali     | `r henry_stick_coll[["all_reviews"]][[1]]`                                   |
+| Reviews 30 gg      | `r henry_stick_coll[["user_reviews"]][[1]]`                                  |
+| Data Pubblicazione | `r henry_stick_coll[["date"]][[1]]`                                          |
+| Descrizione        | `r str_replace(henry_stick_coll[["full_desc"]][[1]], "About This Game", "")` |
+| Prezzo             | `r henry_stick_coll[["price_norm"]][[1]]` USD                                |
+| Categoria          | `r henry_stick_coll[["category_norm"]][[1]]`                                 |
+| Sviluppatori       | `r henry_stick_coll_not_norm[["developer"]][[1]]`                            |
+| Editori            | `r henry_stick_coll_not_norm[["publisher"]][[1]]`                            |
+
+: Dati recuperati per *`r best_title_string`*
+
+## 5.2 Retrò sì, ma ancora attuale?
+
+![](Images/hourglass.png){style="float: right;" width="30%"}
+
+[Qual è la siatuazione del retrò gaming su Steam?]{.underline}
+
+Riferendoci al sottostante grafico, il quadrante in alto a sinistra, definito dalle linee rosse, mostra i giochi molto vecchi che hanno ancora un **seguito popolare** in base al numero di recensioni lasciate negli ultimi 30 giorni. Si nota che anche se esistono le mode, i giochi retrò, ma di qualità, possiedono ancora una fanbase consistente e vengono apprezzati. Inoltre, tendono ad esserlo **più dei videogiochi recenti** (pallini a sinistra stanno tendenzialmente in alto).
+
+Naturalmente i giochi nuovi sono più numerosi e quindi, è normale che le valutazioni coprano uno spettro ampio.
+
+Infine, notiamo che quasi tutti i giochi vecchi sono solamente per giocatore singolo, ma le playerbase più grandi riguardano generi misti (MX), solo multiplayer (MPO) e, inaspettatamente, *non* MMO (multiplayer *massivi* online)
+
+```{r retro_games, include=FALSE}
+old_games <- steam_numbers_norm %>%
+  distinct(name, .keep_all = TRUE) %>%
+  select(name, year_of_pub, total30d, `positive%30d`, category_norm) %>%
+  filter(!is.na(total30d), !is.na(`positive%30d`)) %>%
+  filter(!is.na(year_of_pub)) %>%
+  arrange(year_of_pub)
+old_games
+
+min_year <- min(old_games[["year_of_pub"]])
+max_year <- max(old_games[["year_of_pub"]])
+```
+
+```{r retro_games_results, echo=FALSE}
+ggplot(data = old_games)+
+  geom_point(mapping = aes(x=.data[["year_of_pub"]], y=.data[["positive%30d"]], size=.data[["total30d"]], color=.data[["category_norm"]]), alpha=0.2)+
+  labs(
+    title = "La fanbase e i giochi retrò",
+    subtitle = "Giochi divisi per categoria, recensioni degli ultimi 30 giorni e anno di pubblicazione",
+    x = "Anno",
+    y = "Review positive %"
+  )+
+  scale_x_discrete(breaks = seq(min_year, max_year, by = 5))+
+  geom_hline(yintercept=75, color="red", size=1)+
+  geom_vline(xintercept = "2010", color="red", size=1)+
+  guides(color=guide_legend(title="Categoria"))+
+  guides(size=guide_legend(title="Recensioni ultimi\n30 giorni"))
+```
+
+# 6. Sviluppatori ed Editori
+
+## 6.1 La rete Pub-Dev (editore-sviluppatore)
+
+![](Images/net.png){style="float: right;" width="30%"}
+
+**Chi sono i big players del panorama videoludico?**
+
+Per rispondere a questa domanda cerchiamo di visualizzare, tenendo in considerazione solo i videogochi che hanno anche un editore (dato che come abbiamo visto sono generalmente i più importanti) e le relazioni fra editori ("hub", cioè punti di accentramento), e sviluppatori.
+
+```{r create_pub_dev_net, include=FALSE}
+de_pu_links <- steam_numbers_norm %>%
+  select(developer, publisher) %>%
+  filter(!is.na(developer), !is.na(publisher)) %>%
+  filter(developer!=publisher) %>%
+  distinct(developer, publisher)
+de_pu_links
+
+edges_tbl=tibble(
+  from=de_pu_links[["publisher"]],
+  to=de_pu_links[["developer"]]
+)
+edges_tbl
+
+de_final <- de_pu_links %>%
+  distinct(developer) %>%
+  mutate(isDev=TRUE) %>%
+  rename(name=developer)
+de_final
+de_final_num <- de_final %>%
+  summarise(count=n())
+
+pu_final <- de_pu_links %>%
+  distinct(publisher) %>%
+  mutate(isDev=FALSE) %>%
+  rename(name=publisher)
+pu_final
+pu_final_num <- pu_final %>%
+  summarise(count=n())
+
+union_dev_pub <- union(de_final, pu_final)
+union_dev_pub
+
+nodes_tbl <- tibble(
+  name=union_dev_pub[["name"]],
+  isDev=union_dev_pub[["isDev"]]
+  )
+nodes_tbl
+
+graph_to_display <- tbl_graph(nodes=nodes_tbl, edges=edges_tbl, directed=FALSE)
+```
+
+Il panorama risultante è il seguente:
+
+```{r create_pub_dev_net_result1, echo=FALSE}
+ggraph(graph_to_display, layout = "graphopt")+
+  geom_edge_link()+ 
+  geom_node_point(mapping = aes(colour=nodes_tbl[["isDev"]], alpha=0.1))+
+  guides(color=guide_legend(title="Ruolo"))+
+  scale_alpha_continuous(guide="none")+
+  scale_color_discrete(labels = c("Publisher","Developer"))
+```
+
+```{r create_pub_dev_net_result2, echo=FALSE}
+ggraph(graph_to_display, layout = "kk")+
+  geom_edge_link()+
+  geom_node_point(mapping = aes(colour=nodes_tbl[["isDev"]], alpha=0.1))+
+  guides(color=guide_legend(title="Ruolo"))+
+  scale_alpha_continuous(guide="none")+
+  scale_color_discrete(labels = c("Publisher","Developer"))
+```
+
+Notiamo che ci sono tantissime coppie nella "galassia gaming", in cui un editore ha pubblicato solamente un gioco sviluppato interamente da un unico developer. Cerchiamo di eliminare quei casi per un risultato più pulito e comprensibile.
+
+```{r create_pub_dev_net_limited, include=FALSE}
+pubs_limited <- steam_numbers_norm %>%
+  select(developer, publisher) %>%
+  filter(!is.na(developer), !is.na(publisher)) %>%
+  filter(developer!=publisher) %>%
+  distinct(developer, publisher) %>%
+  count(publisher) %>%
+  arrange(-n) %>%
+  filter(n > 5)
+pubs_limited
+
+de_pu_links_limited <- steam_numbers_norm %>%
+  select(developer, publisher) %>%
+  filter(!is.na(developer), !is.na(publisher)) %>%
+  filter(developer!=publisher) %>%
+  distinct(developer, publisher) %>% 
+  semi_join(pubs_limited %>%
+              distinct(publisher) %>%
+              select(publisher))
+de_pu_links_limited
+
+edges_tbl_limited <- tibble(
+  from=de_pu_links_limited[["publisher"]],
+  to=de_pu_links_limited[["developer"]]
+)
+edges_tbl_limited
+
+de_final_limited <- de_pu_links_limited %>%
+  distinct(developer) %>%
+  mutate(isDev=TRUE) %>%
+  rename(name=developer)
+de_final_limited
+de_final_num_limited <- de_final_limited %>%
+  summarise(count=n())
+
+pu_final_limited <- de_pu_links_limited %>%
+  distinct(publisher) %>%
+  mutate(isDev=FALSE) %>%
+  rename(name=publisher)
+pu_final_limited
+pu_final_num_limited <- pu_final_limited %>%
+  summarise(count=n())
+
+union_dev_pub_limited <- union(de_final_limited, pu_final_limited) %>% 
+  distinct(name, .keep_all = TRUE) #per evitare problemi con developers che sono anche publishers (THQ Nordic è l'unico caso - tralasciamo)
+#altrimenti, due nodi con nome uguale, collega tutti al primo che trova nella tibble
+#e l'altro rimane vuoto...
+union_dev_pub_limited
+
+nodes_tbl_limited <- tibble(
+  name=union_dev_pub_limited[["name"]],
+  isDev=union_dev_pub_limited[["isDev"]]
+  )
+nodes_tbl_limited
+
+pub_dev_net_limited <- tbl_graph(nodes=nodes_tbl_limited, edges=edges_tbl_limited, directed=FALSE)
+```
+
+```{r create_pub_dev_net_limited_result, echo=FALSE}
+ggraph(pub_dev_net_limited, layout = "graphopt")+
+  geom_edge_link(alpha=0.1)+ 
+  geom_node_point(mapping = aes(colour=nodes_tbl_limited[["isDev"]], alpha=0.2))+
+  guides(color=guide_legend(title="Ruolo"))+
+  scale_alpha_continuous(guide="none")+
+  scale_color_discrete(labels = c("Publisher","Developer"))
+  #geom_node_text(label=nodes_tbl_limited[["name"]], repel = TRUE)
+```
+
+Notiamo, nel grafico riportato sotto, tutte le comunità abbastanza rilevanti che si vengono a creare attorno a uno sviluppatore.
+
+```{r pub_dev_net_lim_comm}
+tbl_graph(nodes=nodes_tbl_limited, edges=edges_tbl_limited, directed=FALSE) %>%
+  activate(nodes) %>%
+  mutate(community = as.factor(group_louvain())) %>%
+  ggraph(layout = "graphopt")+
+  geom_edge_link(alpha=0.2)+ 
+  geom_node_point(mapping = aes(colour=community, alpha=0.1))+
+  guides(color=guide_legend(title="Ruolo"))+
+  scale_alpha_continuous(guide="none")
+```
+
+Calcolando alcune metriche di centralità come la degree centrality e il pagerank notiamo, come atteso, che gli editori sono più importanti degli altri nodi (per costruzione del grafo "a stelle"), ma anche che fra editori, alcuni sono enormemente più importanti di altri. Chi vince la classifica o, meglio, a chi corrisponde il pagerank/grado più alto?
+
+```{r pub_dev_net_lim_btw_rnk}
+tbl_graph(nodes=nodes_tbl_limited, edges=edges_tbl_limited, directed=FALSE) %>%
+  activate(nodes) %>%
+  mutate(pagerank = centrality_pagerank()) %>%
+  mutate(deg = centrality_degree(mode="all")) %>%
+  ggraph(layout = "graphopt")+
+  geom_edge_link(alpha = 0.2)+ 
+  geom_node_point(mapping = aes(size = pagerank, colour = deg, alpha=0.1, shape=nodes_tbl_limited[["isDev"]]))+
+  guides(color=guide_legend(title="Degree Centrality"), size=guide_legend(title="Pagerank"), shape=guide_legend(title="Pub/Dev"))+
+  scale_alpha_continuous(guide="none")+
+  scale_shape_discrete(labels = c("Publisher","Developer"))
+```
+
+```{r pagerank, include=FALSE}
+is_top_pagerank <- function(x){
+  if(x==top_pagerank[["name"]][[1]]){
+    return(FALSE)
+  }
+  
+  return(TRUE)
+}
+
+publisher_most_work <- pubs_limited %>%
+  slice_head()
+publisher_most_work
+
+top_pagerank <- tbl_graph(nodes=nodes_tbl_limited, edges=edges_tbl_limited, directed=FALSE) %>%
+  activate(nodes) %>%
+  mutate(pagerank = centrality_pagerank()) %>%
+  data.frame() %>%
+  select(name, pagerank) %>%
+  arrange(-pagerank) %>%
+  slice_head()
+top_pagerank <- tibble(top_pagerank)
+top_pagerank
+
+de_pu_links_top_pagerank <- steam_numbers_norm %>%
+  select(developer, publisher) %>%
+  filter(publisher == top_pagerank[["name"]][[1]])
+de_pu_links_top_pagerank
+
+edges_tbl_top_pagerank <- tibble(
+  from=de_pu_links_top_pagerank[["publisher"]],
+  to=de_pu_links_top_pagerank[["developer"]]
+)
+edges_tbl_top_pagerank
+
+union_dev_pub_top_pagerank <- union((top_pagerank %>%
+                  select(name)
+                ), 
+               (de_pu_links_top_pagerank %>%
+                  select(developer) %>%
+                  rename(name=developer)
+                )
+               ) %>%
+  mutate(isDev=sapply(name, is_top_pagerank))
+union_dev_pub_top_pagerank
+
+pub_dev_net_top_pagerank <- tbl_graph(nodes=union_dev_pub_top_pagerank, edges=edges_tbl_top_pagerank, directed=FALSE)
+pub_dev_net_top_pagerank
+```
+
+Notiamo che il pagerank più alto corrisponde al publisher che ha collaborato con il maggior numero di developers e nel nostro caso è **`r publisher_most_work[["publisher"]][[1]]`** con ben **`r publisher_most_work[["n"]][[1]]`** collaborazioni. Inoltre, per costruzione la la misura di centralità del grado di un nodo corrisponde al numero di collaborazioni fatte con i developers. La sua rete di contatti per la produzione assume la forma sotto riportata:
+
+```{r pagerank_result, echo=FALSE, warning=FALSE}
+#warnings soppressi per ggrepel con troppi overlap
+ggraph(pub_dev_net_top_pagerank, layout = "graphopt")+
+  geom_edge_link(alpha=0.2)+ 
+  geom_node_point(mapping = aes(colour=union_dev_pub_top_pagerank[["isDev"]]))+
+  guides(color=guide_legend(title="Ruolo"))+
+  scale_color_discrete(labels = c("Publisher","Developer"))+
+  scale_edge_alpha_continuous(guide="none")+
+  geom_node_text(label=union_dev_pub_top_pagerank[["name"]], repel = TRUE)
+```
+
+# 7. Conclusione
+
+## 7.1 Possibili sviluppi futuri
+
+![](Images/end.jpg){style="float: right;" width="30%"}
+
+Siamo giunti al termine del nostro viaggio, durante il quale abbiamo analizzato l'"ecosistema" Steam in molte, ma non tutte, delle sue sfaccettature.
+
+Attraverso l'analisi della piattaforma digitale (che ricordiamo essere *una* fra le molte disponibili) abbiamo potuto comprendere meglio alcune dinamiche dell'intero settore videoludico. L'industria del gaming è un ambito estremamente attivo e attira numerosi investitori, talenti e pubblico per l'intrattenimento che può offrire.
+
+Molta ricerca può essere ancora condotta sui videogiochi venduti e questo progetto voleva essere solo un timido accenno. Altri possibili punti su cui si può ancora lavorare sono:
+
+-   ottenere *tutti* i dati relativi a Steam (potenziando i mezzi disponibili, avendo più tempo e velocità maggiore della mia connessione internet per scaricare tutti i dati);
+
+-   includere altre piattaforme di distribuzione di copie digitali come, per esempio, EpicGames;
+
+-   includere le vendite di prodotti fisici dei negozi di vendita al dettaglio.
+
+## Grazie per l'attenzione!
